@@ -2,8 +2,6 @@
 
 A multi-tenant RAG platform where each tenant uploads documents and queries them, can optionally fine-tune its own LoRA adapter, and is served from a shared base model. Built as a personal project to learn system design: multi-tenancy, queues and workers, fine-tuning, and model serving.
 
-> **Status:** Phase 1 in progress (single-tenant RAG). Everything after Phase 1 is planned, not built.
-
 ## Why this project
 
 - **ML:** embeddings, retrieval, LoRA fine-tuning, evaluation
