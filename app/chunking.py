@@ -5,7 +5,7 @@ def chunk_text(text:str,chunk_size: int,overlap:int) -> list[str]:
     if chunk_size<=0:
         raise ValueError("Chunk size must be positive")
 
-    if not 0<+ overlap< chunk_size:
+    if not 0<= overlap< chunk_size:
         raise ValueError("overlap must be >= 0 and < chunk_size")
 
     words = text.split()
