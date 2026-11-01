@@ -18,7 +18,7 @@ def chunk_text(text:str,chunk_size: int,overlap:int) -> list[str]:
 
     for start in range(0,len(words),step):
         window = words[start:start+chunk_size]
-        chunks.append("".join(window))
+        chunks.append(" ".join(window))
 
         if start + chunk_size >= len(words):
             break
