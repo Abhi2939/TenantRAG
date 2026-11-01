@@ -75,3 +75,15 @@ urllib3==2.5.0
 watchdog==6.0.0
 xxhash==3.5.0
 zstandard==0.23.0
+
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic-settings
+psycopg[binary,pool]
+pgvector
+fastembed
+pypdf
+groq
+httpx
+pytest
