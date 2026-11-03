@@ -22,7 +22,7 @@ def _get_client() -> Groq:
         _client = Groq(api_key=settings.groq_api_key)
     return _client
 
-def build_message(question: str,chunks: list[dict]) -> list[dict]:
+def build_messages(question: str,chunks: list[dict]) -> list[dict]:
     context = "\n\n".join(
         f"[{i}] (source: {c['source']})\n{c['text']}" for i, c in enumerate(chunks, 1)
     )
@@ -38,7 +38,7 @@ def generate(question:str,chunks:list[dict]) -> str:
 
     resp = _get_client().chat.completions.create(
         model=settings.llm_model,
-        messages=build_message(question,chunks),
+        messages=build_messages(question,chunks),
         temperature=0,
         max_completion_tokens=settings.llm_max_tokens,
         extra_body={"reasoning_effort": settings.llm_reasoning_effort},

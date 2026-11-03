@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     top_k: int = 5
 
     llm_model: str = "openai/gpt-oss-120b"
-    llm_reasoning_effort = "low"
+    llm_reasoning_effort: str = "low"
     llm_max_tokens: int = 1024
     groq_api_key: str = ""
 

@@ -3,7 +3,6 @@
 from contextlib import asynccontextmanager
 
 import groq
-
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from app.db import close_pool, init_db
