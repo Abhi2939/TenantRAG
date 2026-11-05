@@ -1,1 +1,132 @@
-[]
+[
+  {
+    "id": "q01",
+    "question": "Which database does Phase 1 use to store vectors?",
+    "answer": "Postgres with the pgvector extension.",
+    "evidence": "Postgres + pgvector",
+    "answerable": true
+  },
+  {
+    "id": "q02",
+    "question": "Roughly how much memory do free Render instances have?",
+    "answer": "About 512 MB.",
+    "evidence": "about 512 MB",
+    "answerable": true
+  },
+  {
+    "id": "q03",
+    "question": "Which phase covers LoRA fine-tuning?",
+    "answer": "Phase 4.",
+    "evidence": "LoRA fine-tuning (Phase 4)",
+    "answerable": true
+  },
+  {
+    "id": "q04",
+    "question": "How large is a 7B model in fp16?",
+    "answer": "About 14 GB.",
+    "evidence": "a 7B model in fp16 is about 14 GB",
+    "answerable": true
+  },
+  {
+    "id": "q05",
+    "question": "What does QLoRA add on top of LoRA?",
+    "answer": "It quantizes the frozen base model to 4-bit so training fits on a small GPU.",
+    "evidence": "quantizes the frozen base to 4-bit",
+    "answerable": true
+  },
+  {
+    "id": "q06",
+    "question": "Which engine serves the shared base model with per-tenant adapters?",
+    "answer": "vLLM.",
+    "evidence": "vLLM serving a shared base model plus per-tenant LoRA adapters",
+    "answerable": true
+  },
+  {
+    "id": "q07",
+    "question": "What states does a training job move through?",
+    "answer": "Queued, running, then succeeded or failed.",
+    "evidence": "state machine (queued, running, succeeded or failed)",
+    "answerable": true
+  },
+  {
+    "id": "q08",
+    "question": "Where are trained adapters stored and versioned?",
+    "answer": "In the object store (S3 / MinIO).",
+    "evidence": "where trained adapters are stored and versioned",
+    "answerable": true
+  },
+  {
+    "id": "q09",
+    "question": "Where do per-tenant rate limits live?",
+    "answer": "At the gateway.",
+    "evidence": "rate limits and usage counters live at the gateway",
+    "answerable": true
+  },
+  {
+    "id": "q10",
+    "question": "What does the Render deployment note say about when to deploy?",
+    "answer": "Develop and test locally first, and deploy at the end of the phase, not the start.",
+    "evidence": "Deploy at the end of the phase, not at the start",
+    "answerable": true
+  },
+  {
+    "id": "q11",
+    "question": "Why keep embeddings in Postgres instead of running a dedicated vector database?",
+    "answer": "It is one fewer service and is reused in Phase 2.",
+    "evidence": "Reused in Phase 2, one fewer service",
+    "answerable": true
+  },
+  {
+    "id": "q12",
+    "question": "What happens to the system's knowledge if I remove a source document, when using retrieval?",
+    "answer": "The knowledge disappears, because facts live in the documents rather than the model weights.",
+    "evidence": "delete a document and the knowledge disappears",
+    "answerable": true
+  },
+  {
+    "id": "q13",
+    "question": "Is fine-tuning a dependable way to add new factual knowledge?",
+    "answer": "No, it is not a reliable way to teach new facts; RAG is for facts.",
+    "evidence": "reliable way to teach new facts",
+    "answerable": true
+  },
+  {
+    "id": "q14",
+    "question": "What will be tested early to prove one customer cannot see another customer's data?",
+    "answer": "Cross-tenant leak tests.",
+    "evidence": "Write cross-tenant leak tests early",
+    "answerable": true
+  },
+  {
+    "id": "q15",
+    "question": "What do the Phase 2 plans introduce?",
+    "answer": "Multi-tenancy: API-key auth, tenant-scoped data, and isolation tests.",
+    "evidence": "API-key auth, tenant-scoped data",
+    "answerable": true
+  },
+  {
+    "id": "q16",
+    "question": "What is the monthly budget for renting GPUs?",
+    "answerable": false
+  },
+  {
+    "id": "q17",
+    "question": "Which GPU model will be used for the LoRA training runs?",
+    "answerable": false
+  },
+  {
+    "id": "q18",
+    "question": "Which hashing algorithm is used to store API keys?",
+    "answerable": false
+  },
+  {
+    "id": "q19",
+    "question": "How many simulated tenants does the Phase 5 load test use?",
+    "answerable": false
+  },
+  {
+    "id": "q20",
+    "question": "What is the maximum file size a tenant may upload to /ingest?",
+    "answerable": false
+  }
+]
