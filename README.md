@@ -32,6 +32,8 @@ Tenant client -> API gateway (auth, tenant routing, rate limits)
 
 **Phase 1 slice (what exists now):** Client -> FastAPI -> pgvector -> LLM.
 
+**Live demo (Phase 1):** `https://tenantrag.onrender.com/docs` (free instance: sleeps after 15 minutes idle, first request takes about a minute to wake).
+
 ## Key design decisions
 
 1. **Tenant isolation:** one shared collection with a `tenant_id` filter enforced in a single data-access layer, plus Postgres row-level security as a second layer. Cross-tenant leak tests are written early.
@@ -44,7 +46,7 @@ Tenant client -> API gateway (auth, tenant routing, rate limits)
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Single-tenant RAG: `/ingest`, `/query`, eval set, Docker, Render deploy | In progress |
+| 1 | Single-tenant RAG: `/ingest`, `/query`, eval set, Docker, Render deploy | Complete |
 | 2 | Multi-tenancy: API-key auth, tenant-scoped data, row-level security, isolation tests | Planned |
 | 3 | Async ingestion: Redis queue, workers, basic observability | Planned |
 | 4 | Per-tenant LoRA fine-tuning: manual run first, then pipeline; RAG vs RAG + adapter | Planned |
@@ -56,7 +58,7 @@ Tenant client -> API gateway (auth, tenant routing, rate limits)
 - [x] Query: embed question, top-k retrieval, LLM answer, `/query`
 - [x] Eval: 20 Q/A pairs (15 answerable, 5 unanswerable), `run_eval.py`, baseline recorded (see [Results](#results))
 - [x] Containerize: Dockerfile and Docker Compose with pgvector; `docker compose up` runs everything, config via env only (baseline eval reproduced inside Docker)
-- [ ] Deploy to Render with managed Postgres; `/ingest` and `/query` work on the live URL
+- [x] Deploy to Render (Docker web service, Supabase Postgres); `/ingest` and `/query` work on the live URL
 
 ## Stack
 
@@ -152,4 +154,4 @@ Caveats:
 - Free instances sleep and have about 512 MB of memory, so use a small embedding model.
 - Disk is ephemeral, so keep vectors in managed Postgres.
 - Free databases are limited and may expire; do not treat the deployed copy as permanent storage.
-- Until deployment, development and eval runs use a managed Supabase Postgres (pgvector) instance; row-level security is enabled on its tables.
+- The deployed Phase 1 service runs from the Dockerfile and connects to a managed Supabase Postgres (pgvector) instance through its connection pooler. Config comes from Render environment variables (`DATABASE_URL`, `GROQ_API_KEY`); the app listens on Render's `PORT`.
