@@ -16,7 +16,7 @@ class Source(BaseModel):
     document_id: int
     source: str
     chunk_index: int
-    distance: int
+    distance: float
     text: str
 
 class QueryResponse(BaseModel):
