@@ -1,132 +1,132 @@
 [
   {
     "id": "q01",
-    "question": "Which database does Phase 1 use to store vectors?",
-    "answer": "Postgres with the pgvector extension.",
-    "evidence": "Postgres + pgvector",
+    "question": "What is the default region for a Harbor project?",
+    "answer": "eu-north.",
+    "evidence": "default region is eu-north",
     "answerable": true
   },
   {
     "id": "q02",
-    "question": "Roughly how much memory do free Render instances have?",
-    "answer": "About 512 MB.",
-    "evidence": "about 512 MB",
+    "question": "What is the default health check path?",
+    "answer": "/healthz.",
+    "evidence": "default health check path is /healthz",
     "answerable": true
   },
   {
     "id": "q03",
-    "question": "Which phase covers LoRA fine-tuning?",
-    "answer": "Phase 4.",
-    "evidence": "LoRA fine-tuning (Phase 4)",
+    "question": "Which encryption algorithm protects Harbor secrets?",
+    "answer": "AES-256-GCM.",
+    "evidence": "encrypted with AES-256-GCM",
     "answerable": true
   },
   {
     "id": "q04",
-    "question": "How large is a 7B model in fp16?",
-    "answer": "About 14 GB.",
-    "evidence": "a 7B model in fp16 is about 14 GB",
+    "question": "How many releases does Harbor keep for each project?",
+    "answer": "The last 7 releases.",
+    "evidence": "keeps the last 7 releases",
     "answerable": true
   },
   {
     "id": "q05",
-    "question": "What does QLoRA add on top of LoRA?",
-    "answer": "It quantizes the frozen base model to 4-bit so training fits on a small GPU.",
-    "evidence": "quantizes the frozen base to 4-bit",
+    "question": "What is the API rate limit per token?",
+    "answer": "120 requests per minute per token.",
+    "evidence": "120 requests per minute per token",
     "answerable": true
   },
   {
     "id": "q06",
-    "question": "Which engine serves the shared base model with per-tenant adapters?",
-    "answer": "vLLM.",
-    "evidence": "vLLM serving a shared base model plus per-tenant LoRA adapters",
+    "question": "At what time is the platform database backed up each night?",
+    "answer": "02:30 UTC.",
+    "evidence": "nightly at 02:30 UTC",
     "answerable": true
   },
   {
     "id": "q07",
-    "question": "What states does a training job move through?",
-    "answer": "Queued, running, then succeeded or failed.",
-    "evidence": "state machine (queued, running, succeeded or failed)",
+    "question": "How quickly must a SEV1 incident be acknowledged?",
+    "answer": "Within 5 minutes of the first page.",
+    "evidence": "must be acknowledged within 5 minutes",
     "answerable": true
   },
   {
     "id": "q08",
-    "question": "Where are trained adapters stored and versioned?",
-    "answer": "In the object store (S3 / MinIO).",
-    "evidence": "where trained adapters are stored and versioned",
+    "question": "How long does a personal API token stay valid?",
+    "answer": "30 days.",
+    "evidence": "tokens expire after 30 days",
     "answerable": true
   },
   {
     "id": "q09",
-    "question": "Where do per-tenant rate limits live?",
-    "answer": "At the gateway.",
-    "evidence": "rate limits and usage counters live at the gateway",
+    "question": "How long are logs available for customers on the cheaper plan?",
+    "answer": "14 days (standard plan).",
+    "evidence": "kept for 14 days on the standard plan",
     "answerable": true
   },
   {
     "id": "q10",
-    "question": "What does the Render deployment note say about when to deploy?",
-    "answer": "Develop and test locally first, and deploy at the end of the phase, not the start.",
-    "evidence": "Deploy at the end of the phase, not at the start",
+    "question": "How many failed probes in a row before an instance is treated as unhealthy and replaced?",
+    "answer": "4 consecutive failed checks.",
+    "evidence": "4 consecutive failed checks",
     "answerable": true
   },
   {
     "id": "q11",
-    "question": "Why keep embeddings in Postgres instead of running a dedicated vector database?",
-    "answer": "It is one fewer service and is reused in Phase 2.",
-    "evidence": "Reused in Phase 2, one fewer service",
+    "question": "What is the biggest value I can store in a single secret?",
+    "answer": "48 KB.",
+    "evidence": "no larger than 48 KB",
     "answerable": true
   },
   {
     "id": "q12",
-    "question": "What happens to the system's knowledge if I remove a source document, when using retrieval?",
-    "answer": "The knowledge disappears, because facts live in the documents rather than the model weights.",
-    "evidence": "delete a document and the knowledge disappears",
+    "question": "When does the weekly on-call shift change over?",
+    "answer": "Mondays at 10:00 UTC.",
+    "evidence": "handoff happens on Mondays at 10:00 UTC",
     "answerable": true
   },
   {
     "id": "q13",
-    "question": "Is fine-tuning a dependable way to add new factual knowledge?",
-    "answer": "No, it is not a reliable way to teach new facts; RAG is for facts.",
-    "evidence": "reliable way to teach new facts",
+    "question": "What CPU levels make Harbor add or remove an instance, and for how long must they last?",
+    "answer": "It adds an instance when average CPU stays above 70% for 5 minutes, and removes one when it stays below 30% for 15 minutes.",
+    "evidence": "average CPU stays above 70% for 5 minutes",
     "answerable": true
   },
   {
     "id": "q14",
-    "question": "What will be tested early to prove one customer cannot see another customer's data?",
-    "answer": "Cross-tenant leak tests.",
-    "evidence": "Write cross-tenant leak tests early",
+    "question": "How much traffic does a canary release receive by default, and for how long before promotion?",
+    "answer": "10% of traffic for 12 minutes, then it is promoted to 100% if the error rate stays within the limit.",
+    "evidence": "10% of traffic for 12 minutes",
     "answerable": true
   },
   {
     "id": "q15",
-    "question": "What do the Phase 2 plans introduce?",
-    "answer": "Multi-tenancy: API-key auth, tenant-scoped data, and isolation tests.",
-    "evidence": "API-key auth, tenant-scoped data",
+    "question": "If a setting is defined in harbor.toml and also as an environment variable, which one wins, and what is the full order?",
+    "answer": "The environment variable wins. Order: command-line flags, then environment variables, then harbor.toml, then built-in defaults.",
+    "evidence": "command-line flags, then environment variables",
     "answerable": true
   },
   {
     "id": "q16",
-    "question": "What is the monthly budget for renting GPUs?",
+    "question": "How much does the premium plan cost per month?",
     "answerable": false
   },
   {
     "id": "q17",
-    "question": "Which GPU model will be used for the LoRA training runs?",
+    "question": "Which programming language is the Harbor CLI written in?",
     "answerable": false
   },
   {
     "id": "q18",
-    "question": "Which hashing algorithm is used to store API keys?",
+    "question": "How many projects can a single account create?",
     "answerable": false
   },
   {
     "id": "q19",
-    "question": "How many simulated tenants does the Phase 5 load test use?",
+    "question": "What uptime percentage does Harbor guarantee in its SLA?",
     "answerable": false
   },
   {
     "id": "q20",
-    "question": "What is the maximum file size a tenant may upload to /ingest?",
+    "question": "Which external log store does a log drain forward to by default?",
     "answerable": false
   }
 ]
