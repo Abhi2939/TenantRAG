@@ -51,11 +51,11 @@ Tenant client -> API gateway (auth, tenant routing, rate limits)
 | 5 | Serving and scale: multi-LoRA serving, rate limits, caching, load testing, write-up | Planned |
 
 ### Phase 1 checklist
-- [x] Skeleton: FastAPI app, `/health`, Docker Compose with pgvector
+- [x] Skeleton: FastAPI app, `/health`
 - [x] Ingest: load, chunk, embed, store, `/ingest`
 - [x] Query: embed question, top-k retrieval, LLM answer, `/query`
 - [x] Eval: 20 Q/A pairs (15 answerable, 5 unanswerable), `run_eval.py`, baseline recorded (see [Results](#results))
-- [ ] Containerize: `docker compose up` runs everything, config via env only
+- [x] Containerize: Dockerfile and Docker Compose with pgvector; `docker compose up` runs everything, config via env only (baseline eval reproduced inside Docker)
 - [ ] Deploy to Render with managed Postgres; `/ingest` and `/query` work on the live URL
 
 ## Stack
@@ -76,6 +76,8 @@ cp .env.example .env        # add your GROQ_API_KEY
 docker compose up --build
 curl localhost:8000/health  # {"status":"ok"}
 ```
+
+Ingest through the Swagger UI at `http://localhost:8000/docs` (POST `/ingest`, one file at a time; ingesting the same file twice duplicates its chunks). Run the eval inside the container with `docker compose exec api python -m eval.run_eval`.
 
 ## Repo structure
 
