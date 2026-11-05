@@ -129,4 +129,4 @@ Filled in as phases complete. No numbers are claimed until measured.
 - Build and test locally first; deploy at the end of Phase 1.
 - Free instances sleep and have about 512 MB of memory, so use a small embedding model.
 - Disk is ephemeral, so keep vectors in managed Postgres.
-- Free databases are limited and may expire; do not treat the deployed copy as permanent storage.
+- Free databases are limited and may expire; do not treat the deployed copy as permanent storage. 
