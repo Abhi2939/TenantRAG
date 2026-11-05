@@ -51,10 +51,10 @@ Tenant client -> API gateway (auth, tenant routing, rate limits)
 | 5 | Serving and scale: multi-LoRA serving, rate limits, caching, load testing, write-up | Planned |
 
 ### Phase 1 checklist
-- [ ] Skeleton: FastAPI app, `/health`, Docker Compose with pgvector
-- [ ] Ingest: load, chunk, embed, store, `/ingest`
-- [ ] Query: embed question, top-k retrieval, LLM answer, `/query`
-- [ ] Eval: ~20 Q/A pairs (including a few unanswerable), `run_eval.py`, baseline recorded
+- [x] Skeleton: FastAPI app, `/health`, Docker Compose with pgvector
+- [x] Ingest: load, chunk, embed, store, `/ingest`
+- [x] Query: embed question, top-k retrieval, LLM answer, `/query`
+- [x] Eval: 20 Q/A pairs (15 answerable, 5 unanswerable), `run_eval.py`, baseline recorded (see [Results](#results))
 - [ ] Containerize: `docker compose up` runs everything, config via env only
 - [ ] Deploy to Render with managed Postgres; `/ingest` and `/query` work on the live URL
 
@@ -89,9 +89,9 @@ app/
   ingest.py      # load, chunk, embed, store
   retrieve.py    # vector search, single entry point
   generate.py    # prompt + LLM call
-eval/            # questions.json, run_eval.py
+eval/            # questions.json, run_eval.py, check_evidence.py, results/ (saved runs)
 sql/init.sql     # pgvector extension, schema
-data/docs/       # corpus
+data/docs/       # eval corpus (Harbor docs)
 tests/
 ```
 
@@ -102,21 +102,41 @@ tests/
 | Backend language | Python + FastAPI | ML ecosystem is Python-first; one language for API and workers |
 | Vector store | Postgres + pgvector | One fewer service; reused for tenant filtering in Phase 2 |
 | Embedding model | bge-small-en-v1.5 (384-d) | Small enough for Render's ~512 MB limit |
-| Chunk size / overlap | 500 / 60 (starting point) | Tune using the eval set |
+| Chunk size / overlap | 300 / 50 words (starting point) | Tune using the eval set |
 | Top-k | 5 (starting point) | Tune using the eval set |
-| Generation LLM | _to decide_ | |
-| Eval corpus | _to decide_ | |
+| Generation LLM | `openai/gpt-oss-120b` on Groq, reasoning effort low | Hosted, free tier, behind a single `generate()` function so it can be swapped |
+| Eval corpus | Harbor docs: 2 fictional markdown files, ~1,600 words | The model cannot answer from prior knowledge, so the eval tests retrieval. The TenantRAG README is held back for Phase 2 tenant-isolation tests |
+
+## Evaluation
+
+`eval/questions.json` holds 20 questions over the Harbor docs: 8 direct lookups, 4 paraphrased, 3 needing two nearby facts, and 5 unanswerable. Retrieval and answers are scored separately so failures can be traced to the right stage.
+
+```bash
+python -m eval.check_evidence          # check evidence phrases against the docs before ingesting
+python -m eval.run_eval --no-judge     # retrieval only (hit@1, hit@k, MRR), no LLM calls
+python -m eval.run_eval                # adds LLM-judged answer accuracy and refusal accuracy
+```
+
+Each run is saved to `eval/results/` together with the config that produced it. The judge is the same model that generates answers, so it may grade its own style generously; spot-check saved runs by hand.
 
 ## Results
 
-Filled in as phases complete. No numbers are claimed until measured.
+Phase 1 baseline (chunk 300 / overlap 50, top-k 5, `bge-small-en-v1.5`, `openai/gpt-oss-120b`):
 
 | Metric | Value |
 |---|---|
-| Phase 1 retrieval hit@k | _tbd_ |
-| Phase 1 answer quality | _tbd_ |
+| Phase 1 retrieval hit@1 | 0.53 |
+| Phase 1 retrieval hit@5 | 0.93 |
+| Phase 1 retrieval MRR | 0.70 |
+| Phase 1 answer accuracy | 0.93 (judged by the generating model) |
+| Phase 1 refusal accuracy | 1.00 (5 unanswerable questions) |
 | RAG vs RAG + LoRA (Phase 4) | _tbd_ |
 | p95 latency at N req/s (Phase 5) | _tbd_ |
+
+Caveats:
+- The corpus is about 7 chunks, so hit@5 covers most of it and is close to saturated. hit@1 and MRR are the more informative numbers.
+- With 15 answerable questions, one question moves a score by about 7 points. Only large differences between runs are meaningful.
+- Known failure: q08 ("How long does a personal API token stay valid?") misses retrieval. The evidence is in chunk 0, a long mixed chunk that ranks poorly, and the generator correctly refuses. Candidate fixes to test against this baseline: smaller chunks, and the bge query prefix for queries.
 
 ## Notes on fine-tuning
 
@@ -129,4 +149,5 @@ Filled in as phases complete. No numbers are claimed until measured.
 - Build and test locally first; deploy at the end of Phase 1.
 - Free instances sleep and have about 512 MB of memory, so use a small embedding model.
 - Disk is ephemeral, so keep vectors in managed Postgres.
-- Free databases are limited and may expire; do not treat the deployed copy as permanent storage. 
+- Free databases are limited and may expire; do not treat the deployed copy as permanent storage.
+- Until deployment, development and eval runs use a managed Supabase Postgres (pgvector) instance; row-level security is enabled on its tables.
