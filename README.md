@@ -12,18 +12,12 @@ The goal is a measurable claim, not a buzzword stack: one base model serving man
 
 ## Architecture (target)
 
-```
-Tenant client -> API gateway (auth, tenant routing, rate limits)
-                    |
-     +--------------+------------------+
-     |              |                  |
- Ingest worker  Query service     Training worker
- (chunk, embed) (RAG query path)  (LoRA fine-tuning)
-     |              |                  |
-     |              +--> Model server (vLLM: base model + per-tenant LoRA adapters)
-     |
- Tenant-scoped state: Postgres + pgvector | Object store (docs, adapters) | Redis queue
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.svg">
+  <img alt="TenantRAG architecture" src="docs/architecture.svg">
+</picture>
+
+Solid boxes are built in Phase 1; dashed boxes are planned for Phases 2 to 5.
 
 **Flows**
 - **Query:** gateway resolves API key to `tenant_id` -> query service retrieves tenant-filtered chunks -> model server answers with that tenant's adapter.
@@ -96,6 +90,7 @@ app/
 eval/            # questions.json, run_eval.py, check_evidence.py, results/ (saved runs)
 sql/init.sql     # pgvector extension, schema
 data/docs/       # eval corpus (Harbor docs)
+docs/            # architecture diagram (architecture.svg)
 tests/
 ```
 
