@@ -13,7 +13,7 @@ The goal is a measurable claim, not a buzzword stack: one base model serving man
 ## Architecture (target)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture.svg">
   <img alt="TenantRAG architecture" src="docs/architecture.svg">
 </picture>
 
