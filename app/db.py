@@ -132,6 +132,12 @@ def get_tenant_id_for_key_hash(key_hash: str) -> int | None:
         ).fetchone()
     return row[0] if row else None
 
+def get_tenant_id_by_name(name: str) -> int | None:
+    """Used by local scripts (eval); the API never looks tenants up by name."""
+    with connection() as conn:
+        row = conn.execute("SELECT id FROM tenants WHERE name = %s", (name,)).fetchone()
+    return row[0] if row else None
+
 def close_pool() -> None:
     global _pool
     if _pool is not None:

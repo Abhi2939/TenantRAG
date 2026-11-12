@@ -12,6 +12,7 @@ sys.path.insert(0,str(ROOT))
 from app.config import settings
 from app.generate import REFUSAL, _get_client, generate
 from app.retrieve import retrieve
+from app.db import close_pool,get_tenant_id_by_name
 
 JUDGE_PROMPT = (
     "You are grading an answer against a reference answer.\n"
@@ -62,10 +63,10 @@ def judge(question: str, reference: str, candidate: str) -> bool | None:
     return None
 
 
-def evaluate(questions: list[dict], k: int, use_judge: bool, pause: float = 0.5) -> dict:
+def evaluate(questions: list[dict], k: int, use_judge: bool,tenant_id: int,pause: float = 0.5) -> dict:
     rows = []
     for q in questions:
-        chunks = retrieve(q["question"], k)
+        chunks = retrieve(q["question"],tenant_id, k)
         row = {"id": q["id"], "question": q["question"], "answerable": q["answerable"]}
 
         if q["answerable"]:
@@ -105,6 +106,7 @@ def main() -> None:
     p.add_argument("--k", type=int, default=settings.top_k)
     p.add_argument("--no-judge", action="store_true")
     p.add_argument("--file", default=str(ROOT / "eval" / "questions.json"))
+    p.add_argument("--tenant", default="default", help="tenant name to run the eval as")
     args = p.parse_args()
 
     questions = json.loads(Path(args.file).read_text(encoding="utf-8"))
@@ -115,7 +117,14 @@ def main() -> None:
         if q["answerable"] and not q.get("evidence"):
             sys.exit(f"{q['id']}: answerable questions need an 'evidence' phrase")
 
-    result = evaluate(questions, args.k, use_judge=not args.no_judge)
+        tenant_id = get_tenant_id_by_name(args.tenant)
+    if tenant_id is None:
+        sys.exit(f"No tenant named {args.tenant!r}.")
+
+    try:
+        result = evaluate(questions, args.k, use_judge=not args.no_judge, tenant_id=tenant_id)
+    finally:
+        close_pool()
 
     print(f"\n{'id':<8}{'rank':<6}{'answer':<10}question")
     for r in result["rows"]:
@@ -135,6 +144,7 @@ def main() -> None:
     out = out_dir / f"{datetime.now():%Y%m%d-%H%M%S}.json"
     out.write_text(json.dumps({
         "config": {
+            "tenant": args.tenant,
             "embedding_model": settings.embedding_model, "chunk_size": settings.chunk_size,
             "chunk_overlap": settings.chunk_overlap, "top_k": args.k, "llm_model": settings.llm_model,
         },
