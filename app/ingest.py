@@ -3,7 +3,7 @@ import io
 
 from app.chunking import chunk_text
 from app.config import settings
-from app.db import connection, get_default_tenant_id
+from app.db import connection
 from app.embed import embed_documents
 
 SUPPORTED = (".txt", ".md", ".pdf")
