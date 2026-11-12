@@ -1,3 +1,4 @@
+
 from contextlib import contextmanager
 
 from pgvector.psycopg import register_vector
@@ -5,7 +6,7 @@ from psycopg_pool import ConnectionPool
 
 from app.config import settings
 
-DEFAULT_TENANT = "default"
+DEFAULT_TENANT = "default"  # owns all data created before multi-tenancy existed
 
 _pool: ConnectionPool | None = None
 
@@ -32,20 +33,21 @@ def connection():
 
 
 def init_db() -> None:
-    """Create extension and tables if missing. Safe to call on every startup."""
-    
+    """Create/upgrade the schema. Safe to run on every startup, on a fresh
+    database or on a Phase 1 database that already contains data."""
+    # Extension must exist before the pool registers the vector type.
     import psycopg
     with psycopg.connect(settings.database_url, autocommit=True) as conn:
         conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     dim = settings.embedding_dim
-    with connection() as conn:
-        # tenant and their API keys
+    with connection() as conn:  # one transaction: all of this applies, or none of it
+        # --- tenants and their API keys ---
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS documents (
+            CREATE TABLE IF NOT EXISTS tenants (
                 id         BIGSERIAL PRIMARY KEY,
-                source     TEXT NOT NULL,
+                name       TEXT NOT NULL UNIQUE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )
             """
@@ -68,7 +70,7 @@ def init_db() -> None:
             (DEFAULT_TENANT,),
         )
 
-        # document and chunks
+        # --- documents and chunks (Phase 1 tables) ---
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS documents (
@@ -90,7 +92,8 @@ def init_db() -> None:
             """
         )
 
-        # every row belongs to tenant
+        # --- Phase 2 upgrade: every row belongs to a tenant ---
+        # (add the column, give old rows to the default tenant, then make it mandatory)
         for table in ("documents", "chunks"):
             conn.execute(
                 f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS tenant_id "
@@ -104,7 +107,6 @@ def init_db() -> None:
             conn.execute(f"ALTER TABLE {table} ALTER COLUMN tenant_id SET NOT NULL")
             conn.execute(f"CREATE INDEX IF NOT EXISTS {table}_tenant_idx ON {table}(tenant_id)")
 
-        
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS chunks_embedding_idx
@@ -112,11 +114,14 @@ def init_db() -> None:
             """
         )
 
+
 def get_default_tenant_id() -> int:
+    """TEMPORARY (Phase 2, until auth lands in Step 3): the tenant that owns everything."""
     with connection() as conn:
         return conn.execute(
             "SELECT id FROM tenants WHERE name = %s", (DEFAULT_TENANT,)
         ).fetchone()[0]
+
 
 def close_pool() -> None:
     global _pool
