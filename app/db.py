@@ -115,13 +115,22 @@ def init_db() -> None:
         )
 
 
-def get_default_tenant_id() -> int:
-    """TEMPORARY (Phase 2, until auth lands in Step 3): the tenant that owns everything."""
-    with connection() as conn:
-        return conn.execute(
-            "SELECT id FROM tenants WHERE name = %s", (DEFAULT_TENANT,)
-        ).fetchone()[0]
+# def get_default_tenant_id() -> int:
+#     """TEMPORARY (Phase 2, until auth lands in Step 3): the tenant that owns everything."""
+#     with connection() as conn:
+#         return conn.execute(
+#             "SELECT id FROM tenants WHERE name = %s", (DEFAULT_TENANT,)
+#         ).fetchone()[0]
 
+
+def get_tenant_id_for_key_hash(key_hash: str) -> int | None:
+    """Tenant that owns an active (non-revoked) key, or None."""
+    with connection() as conn:
+        row = conn.execute(
+            "SELECT tenant_id FROM api_keys WHERE key_hash = %s AND revoked_at IS NULL",
+            (key_hash,),
+        ).fetchone()
+    return row[0] if row else None
 
 def close_pool() -> None:
     global _pool
