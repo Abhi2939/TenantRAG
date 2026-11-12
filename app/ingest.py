@@ -19,10 +19,8 @@ def load_text(filename: str, data: bytes) -> str:
     raise ValueError(f"Unsupported file type: {filename}. Use one of {SUPPORTED}")
 
 
-def ingest_document(source: str, text: str, tenant_id: int | None = None) -> tuple[int, int]:
+def ingest_document(source: str, text: str, tenant_id: int) -> tuple[int, int]:
     """Chunk, embed and store one document. Returns (document_id, n_chunks)."""
-    if tenant_id is None:
-        tenant_id = get_default_tenant_id()  # TEMPORARY: auth (Step 3) will always supply it
 
     chunks = chunk_text(text, settings.chunk_size, settings.chunk_overlap)
     if not chunks:
