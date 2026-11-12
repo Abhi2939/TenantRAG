@@ -2,7 +2,7 @@ from app.config import settings
 from app.db import connection
 from app.embed import embed_query
 
-def retrieve(question: str,tenant_id: int, k : int | None = None) -> list[dict]:
+def retrieve(question: str,*,tenant_id: int, k : int | None = None) -> list[dict]:
 
     if tenant_id is None: 
         raise ValueError("tenant_id is required")

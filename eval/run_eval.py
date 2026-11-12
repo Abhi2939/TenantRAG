@@ -66,7 +66,7 @@ def judge(question: str, reference: str, candidate: str) -> bool | None:
 def evaluate(questions: list[dict], k: int, use_judge: bool,tenant_id: int,pause: float = 0.5) -> dict:
     rows = []
     for q in questions:
-        chunks = retrieve(q["question"],tenant_id, k)
+        chunks = retrieve(q["question"],tenant_id=tenant_id, k=k)
         row = {"id": q["id"], "question": q["question"], "answerable": q["answerable"]}
 
         if q["answerable"]:

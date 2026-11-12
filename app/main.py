@@ -48,7 +48,7 @@ def query(req:QueryRequest,
           tenant_id: int = Depends(require_tenant),
           ) -> QueryResponse:
     
-    chunks = retrieve(req.question,tenant_id,req.top_k)
+    chunks = retrieve(req.question,tenant_id=tenant_id,k=req.top_k)
 
     try:
         answer = generate(req.question, chunks)
