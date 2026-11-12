@@ -11,10 +11,12 @@ from app.ingest import ingest_document, load_text
 from app.retrieve import retrieve
 from app.schemas import IngestResponse,QueryRequest,QueryResponse
 from app.auth import require_tenant
+from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    if settings.admin_database_url: 
+        init_db()
     yield
     close_pool()
 

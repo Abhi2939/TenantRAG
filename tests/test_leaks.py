@@ -6,6 +6,7 @@ Database level: Postgres enforces isolation by itself, as the restricted app rol
 Runs against the LOCAL Docker database only. Creates two throwaway tenants and
 deletes them (cascading to their documents, chunks and keys) at the end.
 """
+import os
 import uuid
 from types import SimpleNamespace
 from urllib.parse import urlparse
@@ -38,10 +39,11 @@ SHARED_QUESTIONS = [
 
 @pytest.fixture(scope="module", autouse=True)
 def _local_only():
+    if os.environ.get("LEAK_TESTS_ALLOW_REMOTE") == "1":
+        return  # explicit opt-in, used for the post-deploy check
     for url in (settings.database_url, settings.admin_database_url or settings.database_url):
         if urlparse(url).hostname not in ("localhost", "127.0.0.1"):
             pytest.fail("Leak tests run against the local database only.", pytrace=False)
-
 
 def _make_tenant(label: str, text: str):
     name = f"leaktest-{label}-{uuid.uuid4().hex[:8]}"

@@ -2,8 +2,8 @@
 
     python -m scripts.setup_app_role
 
-Prompts for the role's password (not echoed, not stored in shell history).
-Run it with ADMIN_DATABASE_URL (or an owner DATABASE_URL) set.
+Prompts for the role's password (not echoed). Runs the migration first.
+Uses ADMIN_DATABASE_URL (falls back to DATABASE_URL).
 """
 import getpass
 import sys
@@ -34,8 +34,21 @@ def main() -> None:
         conn.execute(
             sql.SQL("GRANT USAGE, SELECT ON SEQUENCE documents_id_seq, chunks_id_seq TO {}").format(role)
         )
-        # Auth lookup only: the app can never read key prefixes or timestamps, and never sees `tenants`.
         conn.execute(sql.SQL("GRANT SELECT (key_hash, tenant_id, revoked_at) ON api_keys TO {}").format(role))
+
+        # Where does the vector type live? (public locally, often `extensions` on Supabase)
+        ext_schema = conn.execute(
+            "SELECT n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace "
+            "WHERE e.extname = 'vector'"
+        ).fetchone()[0]
+        schemas = ["public"] + ([ext_schema] if ext_schema != "public" else [])
+        if ext_schema != "public":
+            conn.execute(sql.SQL("GRANT USAGE ON SCHEMA {} TO {}").format(sql.Identifier(ext_schema), role))
+        conn.execute(
+            sql.SQL("ALTER ROLE {} SET search_path = {}").format(
+                role, sql.SQL(", ").join(sql.Identifier(s) for s in schemas)
+            )
+        )
     print(f"Role {APP_ROLE} is ready.")
 
 

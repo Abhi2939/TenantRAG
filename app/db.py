@@ -36,7 +36,7 @@ def get_pool() -> ConnectionPool:
 
 @contextmanager
 def connection():
-    """App connection with NO tenant set: RLS-protected tables return zero rows."""
+    """App connection with NO tenant set: RLS-protected tenant tables return zero rows."""
     with get_pool().connection() as conn:
         yield conn
 
@@ -57,8 +57,9 @@ def admin_connection():
 
 
 def init_db() -> None:
-    """Create/upgrade the schema and RLS policies. Safe to run on every startup.
-    Needs the admin connection: the restricted app role cannot alter tables."""
+    """Create/upgrade the schema and RLS policies. Safe to run repeatedly, on a fresh
+    database or on one that already contains data. Needs the admin (owner) connection:
+    the restricted app role cannot alter tables."""
     admin_url = settings.admin_database_url or settings.database_url
     # Extension must exist before anything registers the vector type.
     with psycopg.connect(admin_url, autocommit=True) as conn:
@@ -117,6 +118,7 @@ def init_db() -> None:
         )
 
         # --- Phase 2 upgrade: every row belongs to a tenant ---
+        # (add the column, give old rows to the default tenant, then make it mandatory)
         for table in ("documents", "chunks"):
             conn.execute(
                 f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS tenant_id "
@@ -137,7 +139,7 @@ def init_db() -> None:
             """
         )
 
-        # --- Phase 2 row-level security: a row is visible only to its own tenant ---
+        # --- Row-level security: a row is visible only to its own tenant ---
         # No tenant set -> nullif gives NULL -> comparison is never true -> zero rows (fail closed).
         for table in ("documents", "chunks"):
             conn.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
@@ -149,6 +151,16 @@ def init_db() -> None:
                     WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::bigint)
                 """
             )
+
+        # tenants / api_keys: RLS on with no general policy hides them from every role except
+        # the owner. The API's login gets one narrow policy so the key lookup still works.
+        for table in ("tenants", "api_keys"):
+            conn.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
+        conn.execute("DROP POLICY IF EXISTS app_key_lookup ON api_keys")
+        conn.execute(
+            f"CREATE POLICY app_key_lookup ON api_keys FOR SELECT "
+            f"USING (current_user = '{APP_ROLE}')"
+        )
 
 
 def get_tenant_id_for_key_hash(key_hash: str) -> int | None:
