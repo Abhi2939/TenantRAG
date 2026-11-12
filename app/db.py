@@ -1,12 +1,20 @@
+"""Postgres + pgvector. The ONLY module that talks to the DB driver.
 
+Two kinds of connection:
+- App connections (DATABASE_URL, restricted role). Row-level security applies, so
+  tenant_connection() must set the tenant before touching tenant tables.
+- Admin connections (ADMIN_DATABASE_URL, table owner). Migrations and local scripts only.
+"""
 from contextlib import contextmanager
 
+import psycopg
 from pgvector.psycopg import register_vector
 from psycopg_pool import ConnectionPool
 
 from app.config import settings
 
 DEFAULT_TENANT = "default"  # owns all data created before multi-tenancy existed
+APP_ROLE = "tenantrag_app"  # restricted role the API connects as
 
 _pool: ConnectionPool | None = None
 
@@ -28,20 +36,36 @@ def get_pool() -> ConnectionPool:
 
 @contextmanager
 def connection():
+    """App connection with NO tenant set: RLS-protected tables return zero rows."""
     with get_pool().connection() as conn:
         yield conn
 
 
+@contextmanager
+def tenant_connection(tenant_id: int):
+    """App connection scoped to one tenant for this transaction only (is_local = true)."""
+    if tenant_id is None:
+        raise ValueError("tenant_id is required")
+    with get_pool().connection() as conn:
+        conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(int(tenant_id)),))
+        yield conn
+
+
+def admin_connection():
+    """Owner connection for migrations and local scripts. Use as a context manager."""
+    return psycopg.connect(settings.admin_database_url or settings.database_url)
+
+
 def init_db() -> None:
-    """Create/upgrade the schema. Safe to run on every startup, on a fresh
-    database or on a Phase 1 database that already contains data."""
-    # Extension must exist before the pool registers the vector type.
-    import psycopg
-    with psycopg.connect(settings.database_url, autocommit=True) as conn:
+    """Create/upgrade the schema and RLS policies. Safe to run on every startup.
+    Needs the admin connection: the restricted app role cannot alter tables."""
+    admin_url = settings.admin_database_url or settings.database_url
+    # Extension must exist before anything registers the vector type.
+    with psycopg.connect(admin_url, autocommit=True) as conn:
         conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     dim = settings.embedding_dim
-    with connection() as conn:  # one transaction: all of this applies, or none of it
+    with admin_connection() as conn:  # one transaction: all of this applies, or none of it
         # --- tenants and their API keys ---
         conn.execute(
             """
@@ -93,7 +117,6 @@ def init_db() -> None:
         )
 
         # --- Phase 2 upgrade: every row belongs to a tenant ---
-        # (add the column, give old rows to the default tenant, then make it mandatory)
         for table in ("documents", "chunks"):
             conn.execute(
                 f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS tenant_id "
@@ -114,13 +137,18 @@ def init_db() -> None:
             """
         )
 
-
-# def get_default_tenant_id() -> int:
-#     """TEMPORARY (Phase 2, until auth lands in Step 3): the tenant that owns everything."""
-#     with connection() as conn:
-#         return conn.execute(
-#             "SELECT id FROM tenants WHERE name = %s", (DEFAULT_TENANT,)
-#         ).fetchone()[0]
+        # --- Phase 2 row-level security: a row is visible only to its own tenant ---
+        # No tenant set -> nullif gives NULL -> comparison is never true -> zero rows (fail closed).
+        for table in ("documents", "chunks"):
+            conn.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
+            conn.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
+            conn.execute(
+                f"""
+                CREATE POLICY tenant_isolation ON {table}
+                    USING      (tenant_id = nullif(current_setting('app.tenant_id', true), '')::bigint)
+                    WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::bigint)
+                """
+            )
 
 
 def get_tenant_id_for_key_hash(key_hash: str) -> int | None:
@@ -132,11 +160,13 @@ def get_tenant_id_for_key_hash(key_hash: str) -> int | None:
         ).fetchone()
     return row[0] if row else None
 
+
 def get_tenant_id_by_name(name: str) -> int | None:
-    """Used by local scripts (eval); the API never looks tenants up by name."""
-    with connection() as conn:
+    """For local scripts (eval). Admin connection: the app role cannot read `tenants`."""
+    with admin_connection() as conn:
         row = conn.execute("SELECT id FROM tenants WHERE name = %s", (name,)).fetchone()
     return row[0] if row else None
+
 
 def close_pool() -> None:
     global _pool

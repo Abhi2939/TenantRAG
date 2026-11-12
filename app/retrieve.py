@@ -1,5 +1,5 @@
 from app.config import settings
-from app.db import connection
+from app.db import tenant_connection
 from app.embed import embed_query
 
 def retrieve(question: str,*,tenant_id: int, k : int | None = None) -> list[dict]:
@@ -10,7 +10,7 @@ def retrieve(question: str,*,tenant_id: int, k : int | None = None) -> list[dict
     k = k or settings.top_k
     q = embed_query(question)
 
-    with connection() as conn:
+    with tenant_connection(tenant_id) as conn:
 
         conn.execute("SELECT set_config('hnsw.ef_search', '100', true)")
 

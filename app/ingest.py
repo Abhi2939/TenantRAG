@@ -3,7 +3,7 @@ import io
 
 from app.chunking import chunk_text
 from app.config import settings
-from app.db import connection
+from app.db import tenant_connection
 from app.embed import embed_documents
 
 SUPPORTED = (".txt", ".md", ".pdf")
@@ -29,7 +29,7 @@ def ingest_document(source: str, text: str, tenant_id: int) -> tuple[int, int]:
     vectors = embed_documents(chunks)
 
     # One transaction: a document is either fully stored or not at all.
-    with connection() as conn:
+    with tenant_connection(tenant_id) as conn:
         doc_id = conn.execute(
             "INSERT INTO documents (source, tenant_id) VALUES (%s, %s) RETURNING id",
             (source, tenant_id),

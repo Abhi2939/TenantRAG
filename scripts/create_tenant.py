@@ -4,7 +4,7 @@ import sys
 
 import psycopg
 
-from app.db import close_pool, connection, init_db
+from app.db import close_pool, admin_connection, init_db
 from app.keys import generate_key, hash_key, key_prefix
 
 
@@ -12,7 +12,7 @@ def create_key_for(name: str, existing: bool) -> tuple[int, str]:
     """Returns (tenant_id, plain_key). Raises ValueError for user mistakes."""
     key = generate_key()
     try:
-        with connection() as conn:  # one transaction: tenant + key together, or neither
+        with admin_connection() as conn:  # one transaction: tenant + key together, or neither
             row = conn.execute("SELECT id FROM tenants WHERE name = %s", (name,)).fetchone()
             if existing:
                 if row is None:
