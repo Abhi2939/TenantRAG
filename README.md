@@ -17,7 +17,7 @@ The goal is a measurable claim, not a buzzword stack: one base model serving man
   <img alt="TenantRAG architecture" src="docs/architecture.svg">
 </picture>
 
-Solid boxes are built in Phase 1; dashed boxes are planned for Phases 2 to 5. Phase 2 adds API-key auth inside the FastAPI app itself (a dependency that resolves the key to a `tenant_id`); a separate gateway comes in Phase 5.
+Solid boxes are built in Phases 1 and 2; dashed boxes are planned for Phases 3 to 5. Phase 2 adds API-key auth inside the FastAPI app itself (a dependency that resolves the key to a `tenant_id`); a separate gateway comes in Phase 5.
 
 **Flows**
 - **Query:** the API resolves the API key to `tenant_id` -> query service retrieves tenant-filtered chunks -> model server answers with that tenant's adapter.
@@ -26,7 +26,7 @@ Solid boxes are built in Phase 1; dashed boxes are planned for Phases 2 to 5. Ph
 
 **What exists now:** Client -> FastAPI (API-key auth) -> tenant-scoped pgvector (row-level security) -> LLM.
 
-**Live demo (Phase 1):** `https://tenantrag.onrender.com/docs` (free instance: sleeps after 15 minutes idle, first request takes about a minute to wake). The live demo still runs the Phase 1 code (no authentication) until Phase 2 is deployed and verified.
+**Live demo:** `https://tenantrag.onrender.com/docs` (free instance: sleeps after 15 minutes idle, first request takes about a minute to wake). Since Phase 2 the demo runs with authentication: `/ingest` and `/query` need an API key, and only `/health` is public. Keys are issued by the project owner.
 
 ## Key design decisions
 
@@ -41,7 +41,7 @@ Solid boxes are built in Phase 1; dashed boxes are planned for Phases 2 to 5. Ph
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Single-tenant RAG: `/ingest`, `/query`, eval set, Docker, Render deploy | Complete |
-| 2 | Multi-tenancy: API-key auth, tenant-scoped data, row-level security, isolation tests | Built and tested locally; deploy pending |
+| 2 | Multi-tenancy: API-key auth, tenant-scoped data, row-level security, isolation tests | Complete (deployed) |
 | 3 | Async ingestion: Redis queue, workers, basic observability | Planned |
 | 4 | Per-tenant LoRA fine-tuning: manual run first, then pipeline; RAG vs RAG + adapter | Planned |
 | 5 | Serving and scale: multi-LoRA serving, rate limits, caching, load testing, write-up | Planned |
@@ -62,7 +62,7 @@ Solid boxes are built in Phase 1; dashed boxes are planned for Phases 2 to 5. Ph
 - [x] Row-level security on `documents` and `chunks`, with the API connecting as a restricted role
 - [x] Leak tests at the app level and the database level
 - [x] Per-tenant eval: `default` tenant matches the Phase 1 baseline
-- [ ] Deploy: migrations out of app startup, restricted role on Supabase, leak tests against the deployed setup, real key verified on the live URL
+- [x] Deploy: migrations out of app startup, restricted role on Supabase, leak tests passing against the deployed database, keys working on the live URL
 
 ## Stack
 
@@ -85,11 +85,12 @@ Solid boxes are built in Phase 1; dashed boxes are planned for Phases 2 to 5. Ph
 
 **API keys.** `trag_` + 32 random bytes (`secrets.token_urlsafe`), shown once. Only the SHA-256 hash and an 8-character prefix are stored. A fast hash is appropriate because keys are high-entropy; slow password hashes defend low-entropy passwords. A key is revoked once `revoked_at` is set, and revoked keys never match. Missing, malformed, unknown and revoked keys all return the same 401, so a caller cannot tell them apart. Tenants are created by a local script, not an endpoint, so there is no public way to create one.
 
-**RLS setup.** Policies on `documents` and `chunks` compare `tenant_id` with the per-transaction setting `app.tenant_id` (`set_config(..., true)`, so the value cannot leak across pooled connections). No setting means zero rows (fail closed), and `WITH CHECK` blocks writing a row tagged for another tenant. The API connects as `tenantrag_app`: not a superuser, no BYPASSRLS, not the table owner, with only the grants it needs (select and insert on the two tenant tables, and read access to three columns of `api_keys` for the key lookup). Migrations run as the table owner through `ADMIN_DATABASE_URL`. RLS is silently skipped for table owners, superusers and BYPASSRLS roles (Supabase's default `postgres` role is one of these), so the restricted role is what makes the policies real.
+**RLS setup.** Policies on `documents` and `chunks` compare `tenant_id` with the per-transaction setting `app.tenant_id` (`set_config(..., true)`, so the value cannot leak across pooled connections). No setting means zero rows (fail closed), and `WITH CHECK` blocks writing a row tagged for another tenant. The API connects as `tenantrag_app`: not a superuser, no BYPASSRLS, not the table owner, with only the grants it needs (select and insert on the two tenant tables, and read access to three columns of `api_keys` for the key lookup). `tenants` and `api_keys` also have RLS on, with a single policy that lets only the API's role read `api_keys` for the key lookup. Migrations run as the table owner through `ADMIN_DATABASE_URL`. RLS is silently skipped for table owners, superusers and BYPASSRLS roles (Supabase's default `postgres` role is one of these), so the restricted role is what makes the policies real.
 
-**Leak tests** (`tests/test_leaks.py`, local database only, throwaway tenants that are deleted afterwards).
+**Leak tests** (`tests/test_leaks.py`, throwaway tenants that are deleted afterwards).
 - *App level:* retrieval and `/query` return only the caller's chunks in both directions; the same question gives each tenant its own sources; searching for the other tenant's secret finds nothing; documents ingested through `/ingest` are invisible to the other tenant; retrieval without a tenant is refused.
 - *Database level, as the restricted role:* the role is not superuser, BYPASSRLS or owner; no tenant set returns zero rows; a tenant context sees only its own rows; inserting a document or chunk for another tenant is rejected; writes without a tenant are rejected; the tenant setting does not carry into the next transaction; the role cannot read `tenants` or key metadata.
+- They run against the local database by default and refuse any other host. For the post-deploy check, `LEAK_TESTS_ALLOW_REMOTE=1` opts in explicitly. All 14 pass both locally and against the deployed database.
 
 **Known limits.**
 - HNSW applies the tenant filter after the index search, so `hnsw.ef_search` is raised to 100 per query. Many tenants may need iterative scans (pgvector 0.8+) or partitioning.
@@ -102,7 +103,7 @@ Phase 2 needs two database logins (owner for migrations, restricted role for the
 ```bash
 cp .env.example .env                 # add your GROQ_API_KEY and the two database URLs below
 docker compose up -d db              # Postgres + pgvector (published on host port 5433)
-python -m scripts.setup_app_role     # creates the restricted role (prompts for its password)
+python -m scripts.setup_app_role     # runs the migration and creates the restricted role (prompts for its password)
 python -m scripts.create_tenant "Acme Corp"      # prints an API key once; only its hash is stored
 uvicorn app.main:app --reload
 ```
@@ -126,7 +127,9 @@ curl localhost:8000/health           # {"status":"ok"}  (public, no key)
 
 Ingest one file at a time; ingesting the same file twice duplicates its chunks and skews retrieval scores. To add another key to a tenant use `python -m scripts.create_tenant "Acme Corp" --existing`. To revoke one, set `revoked_at` on its row in `api_keys` (the 8-character prefix identifies it).
 
-The full-stack `docker compose up --build` path from Phase 1 has not been updated for the Phase 2 environment variables yet; that happens with the deploy step.
+The app only runs migrations at startup when `ADMIN_DATABASE_URL` is set (local convenience). In production that variable is never set, and migrations run as a separate step with `python -m scripts.migrate`.
+
+The full-stack `docker compose up --build` path from Phase 1 has not been updated for the Phase 2 environment variables yet.
 
 ## Tests
 
@@ -135,7 +138,7 @@ python -m pytest tests               # key helpers, auth dependency, leak tests
 python -m pytest tests/test_leaks.py -v
 ```
 
-The leak tests need the local Docker database and refuse to run against a non-local host.
+The leak tests need a database with the schema and the restricted role in place (the local Docker one). They refuse to run against a non-local host unless `LEAK_TESTS_ALLOW_REMOTE=1` is set.
 
 ## Repo structure
 
@@ -152,8 +155,9 @@ app/
   retrieve.py    # tenant-scoped vector search, single entry point
   generate.py    # prompt + LLM call
 scripts/
-  create_tenant.py    # create a tenant and issue an API key (local only)
-  setup_app_role.py   # create the restricted database role and its grants
+  create_tenant.py    # create a tenant and issue an API key (owner connection, run by hand)
+  setup_app_role.py   # run the migration, create the restricted role and its grants
+  migrate.py          # apply schema and RLS policies as the table owner
 eval/            # questions.json, run_eval.py (--tenant), check_evidence.py, results/ (saved runs)
 sql/init.sql     # pgvector extension and Phase 1 schema (the Phase 2 migration lives in db.py)
 data/docs/       # eval corpus (Harbor docs)
@@ -179,6 +183,8 @@ tests/           # test_keys.py, test_auth.py, test_leaks.py, ...
 | Missing tenant context | Fail closed (zero rows, not all rows) | A bug should leak nothing |
 | Database roles | Owner for migrations, restricted role (no BYPASSRLS, not owner) for the API | RLS does not apply to owners or BYPASSRLS roles, so the app must not connect as one |
 | Auth failures | One identical 401 for every failure | A caller cannot distinguish a wrong key from a revoked one |
+| Migrations | A separate step run as the owner, not at app startup | The live app connects as the restricted role, which cannot alter tables, and the owner login never needs to exist in the running service |
+| Production secrets | Production URLs only in Render's environment, entered into a terminal through a hidden prompt for one-off work | Keeps database passwords out of `.env`, shell history and the repo |
 
 ## Evaluation
 
@@ -205,7 +211,7 @@ Phase 1 baseline (chunk 300 / overlap 50, top-k 5, `bge-small-en-v1.5`, `openai/
 | Phase 1 answer accuracy | 0.93 (judged by the generating model) |
 | Phase 1 refusal accuracy | 1.00 (5 unanswerable questions) |
 | Phase 2 tenant `default` retrieval (restricted role, RLS on) | 0.53 / 0.93 / 0.70, identical to the Phase 1 baseline |
-| Phase 2 leak tests (app level and database level) | All passing |
+| Phase 2 leak tests (app level and database level) | 14 of 14 passing, locally and against the deployed database |
 | RAG vs RAG + LoRA (Phase 4) | _tbd_ |
 | p95 latency at N req/s (Phase 5) | _tbd_ |
 
@@ -213,7 +219,7 @@ Caveats:
 - The corpus is about 7 chunks, so hit@5 covers most of it and is close to saturated. hit@1 and MRR are the more informative numbers.
 - With 15 answerable questions, one question moves a score by about 7 points. Only large differences between runs are meaningful.
 - Known failure: q08 ("How long does a personal API token stay valid?") misses retrieval. The evidence is in chunk 0, a long mixed chunk that ranks poorly, and the generator correctly refuses. Candidate fixes to test against this baseline: smaller chunks, and the bge query prefix for queries.
-- Duplicate ingestion lowers these scores: every document stored twice put copies of the same chunk in the top 5 and pushed q05 and q08 out of range (hit@5 0.87, MRR 0.64). Check `select source, count(*) from documents group by 1;` before trusting a run.
+- Duplicate ingestion lowers these scores: every document stored twice put copies of the same chunk in the top 5 and pushed q05 and q08 out of range (hit@5 0.87, MRR 0.64). The live database had accumulated several copies of each file through repeated ingestion, the same failure at a larger scale. Check `select source, count(*) from documents group by 1;` before trusting a run.
 
 ## Notes on fine-tuning
 
@@ -221,12 +227,21 @@ Caveats:
 - LoRA is for style, format, and domain behavior, not for teaching new facts.
 - The eval baseline from Phase 1 is what makes any later improvement measurable, including an honest negative result.
 
-## Deployment notes (Render)
+## Deployment notes (Render + Supabase)
 
 - Build and test locally first; deploy at the end of each phase.
 - Free instances sleep and have about 512 MB of memory, so use a small embedding model.
 - Disk is ephemeral, so keep vectors in managed Postgres.
 - Free databases are limited and may expire; do not treat the deployed copy as permanent storage.
-- The deployed Phase 1 service runs from the Dockerfile and connects to a managed Supabase Postgres (pgvector) instance through its connection pooler. Config comes from Render environment variables (`DATABASE_URL`, `GROQ_API_KEY`); the app listens on Render's `PORT`.
-- Keep the production database URL only in Render's environment variables, never in a local `.env`. Running Phase 2 migrations against the shared database breaks the live Phase 1 `/ingest`, because the old code does not send a `tenant_id`.
-- Phase 2 deployment (pending) needs the restricted role created on Supabase, migrations run as a separate step instead of at app startup, and Render's `DATABASE_URL` pointed at the restricted role.
+- The service runs from the Dockerfile and connects to a managed Supabase Postgres (pgvector) instance through its connection pooler. Config comes from Render environment variables (`DATABASE_URL`, `GROQ_API_KEY`); the app listens on Render's `PORT`.
+- Keep production database URLs only in Render's environment variables, never in a local `.env`. Running Phase 2 migrations against the shared database breaks a deployed Phase 1 `/ingest`, because the old code does not send a `tenant_id`.
+
+**Phase 2 deployment procedure**
+1. As the table owner (URL entered through a hidden prompt into `ADMIN_DATABASE_URL` for that terminal only), run `python -m scripts.setup_app_role`. It migrates the schema (existing rows move to the `default` tenant) and creates the restricted role.
+2. Revoke the database privileges that Supabase's public API roles (`anon`, `authenticated`) get on the four tables, and check the row counts did not change.
+3. Create production keys with `python -m scripts.create_tenant`.
+4. Deploy the new code while Render still uses the owner login (the code works with it) and check the live URL.
+5. Point Render's `DATABASE_URL` at the restricted role through the pooler (the pooler username includes the project reference). Never set `ADMIN_DATABASE_URL` on Render.
+6. Run the leak tests against the deployed database with `LEAK_TESTS_ALLOW_REMOTE=1`, then close the terminal so the secrets leave its environment.
+
+If a step goes wrong, point Render back at the previous login and redeploy the previous commit; the Phase 1 schema can be restored by disabling RLS, dropping both `tenant_id` columns and the `api_keys` and `tenants` tables (the documents and chunks stay).
